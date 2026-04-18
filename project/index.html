@@ -333,10 +333,16 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 
   <!-- METRICS -->
   <div class="metrics">
-    <div class="mc mc-i"><div class="mc-lbl">Original Size</div><div class="mc-val" id="mOrig">—</div><div class="mc-unit">data points</div></div>
-    <div class="mc mc-t"><div class="mc-lbl">Compressed Size</div><div class="mc-val" id="mComp">—</div><div class="mc-unit">encoded values</div></div>
-    <div class="mc mc-a"><div class="mc-lbl">Compression Ratio</div><div class="mc-val" id="mRatio">—</div><div class="mc-unit">original ÷ compressed</div></div>
-    <div class="mc mc-g"><div class="mc-lbl">Space Saved</div><div class="mc-val" id="mSaved">—</div><div class="mc-unit">% reduction</div></div>
+    <div class="mc mc-i"><div class="mc-lbl">Original Cost</div><div class="mc-val" id="mOrig">—</div><div class="mc-unit">bits</div></div>
+    <div class="mc mc-t"><div class="mc-lbl">Compressed Cost</div><div class="mc-val" id="mComp">—</div><div class="mc-unit">bits</div></div>
+    <div class="mc mc-a"><div class="mc-lbl">Optimization Gain</div><div class="mc-val" id="mRatio">—</div><div class="mc-unit">original ÷ compressed</div></div>
+    <div class="mc mc-g"><div class="mc-lbl">Cost Reduction</div><div class="mc-val" id="mSaved">—</div><div class="mc-unit">% savings</div></div>
+  </div>
+
+  <!-- OPTIMIZATION SUMMARY -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:20px;">
+    <div style="font-size:13px;font-weight:600;color:#c4c9e8;margin-bottom:10px;">📊 Optimization Summary</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9198c8;line-height:1.9;">This system minimizes data transmission cost by reducing redundancy using Delta Encoding. The objective function is to minimize total bits transmitted while preserving information fidelity. Prediction-based encoding achieves this by transmitting only deviations from predicted values.</div>
   </div>
 
   <!-- CHART + STEPS -->
@@ -385,7 +391,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
     </div>
 
     <div class="panel">
-      <div class="ph"><div class="pt">Efficiency Metrics</div></div>
+      <div class="ph"><div class="pt">Optimization Metrics</div></div>
       <div class="eff-g">
         <div class="ef">
           <div class="ef-lbl">Bandwidth Saved</div>
@@ -429,10 +435,10 @@ let algo = 'delta', chart = null;
 const ALGO_NAMES = {delta:'Delta Encoding',rle:'Run-Length Encoding',minmax:'Min-Max Normalization',half:'Basic Scaling'};
 const EFF_RATINGS = {delta:92,rle:85,minmax:78,half:30};
 const VIVA = {
-  delta:`<strong>Algorithm:</strong> Delta Encoding stores only the <em>difference</em> between consecutive sensor readings instead of raw values. The first value is transmitted as-is; each following value is <em>(current − previous)</em>. The receiver perfectly reconstructs the original data by summing deltas. This is a <strong>lossless</strong> technique widely used in IoT, time-series databases, and video codecs — wherever data changes slowly between readings.`,
-  rle:`<strong>Algorithm:</strong> Run-Length Encoding (RLE) detects consecutive repeated sensor values and encodes them as a (value, count) pair instead of repeating them. Example: [20,20,20,30,30] → [(20,3),(30,2)] — 5 values become 2 pairs. This is a <strong>lossless</strong> algorithm that shines when IoT sensors hold steady between events. Original data reconstructs perfectly at the receiver.`,
-  minmax:`<strong>Algorithm:</strong> Min-Max Normalization scales every reading into the [0,1] range using <em>(x−min)/(max−min)</em>. Min and max are transmitted once as metadata (small overhead). The receiver reconstructs exactly via <em>norm×(max−min)+min</em>. This <strong>lossless</strong> technique standardizes heterogeneous sensor ranges, enabling efficient downstream ML inference and cross-device comparison.`,
-  half:`<strong>Note:</strong> This is a basic scaling simulation (÷2) included for educational comparison only — it is not a real compression algorithm. Our actual implementation uses <strong>Delta Encoding</strong>, a real lossless IoT compression technique that encodes differences between readings and achieves meaningful bandwidth and storage savings without any data loss.`
+  delta:`<strong>Optimization Approach:</strong> This project models IoT data transmission as an optimization problem. Delta Encoding minimizes bandwidth usage by transmitting only the <em>difference</em> (delta) between consecutive readings. The first value is sent; subsequent transmissions carry only deltas. The objective function minimizes total bits transmitted: <em>Cost = (n_deltas) × 32 bits</em>. The receiver reconstructs original data perfectly by accumulating deltas. This prediction-based encoding is a <strong>lossless</strong> optimization technique used in real IoT systems where data changes gradually.`,
+  rle:`<strong>Optimization Approach:</strong> This project optimizes data transmission using Run-Length Encoding (RLE). When consecutive sensor values repeat, RLE encodes them as (value, count) pairs instead of individual transmissions. Example: [20,20,20,30,30] → [(20,3),(30,2)], reducing 5 transmissions to 2. The objective function minimizes cost when redundancy is present. This is a <strong>lossless</strong> optimization technique effective for sensor data with stable readings and minimal prediction error.`,
+  minmax:`<strong>Optimization Approach:</strong> This project optimizes sensor data for efficient machine learning using Min-Max Normalization. All readings are scaled to [0,1] using <em>(x−min)/(max−min)</em>. Min/max metadata is transmitted once. Optimization objective: minimize bits per value while standardizing heterogeneous sensor ranges. The receiver reconstructs perfectly. This <strong>lossless</strong> technique is fundamental in ML pipelines where feature normalization is critical and bandwidth efficiency matters.`,
+  half:`<strong>Note:</strong> This is a basic scaling simulation (÷2) for comparison only. Our main implementation uses <strong>Delta Encoding</strong>, a real optimization technique that minimizes transmission cost by exploiting temporal correlation in sensor data. The cost function is <em>J(θ) = Σ bits_transmitted</em>, minimized through predictive encoding.`
 };
 
 /* ALGO SELECT */
@@ -521,8 +527,8 @@ function getStepDesc(i, orig, enc, algoKey) {
   if (algoKey === 'delta') {
     if (i === 0) return '(base value)';
     const diff = enc;
-    if (diff === 0) return 'no change';
-    return (diff > 0 ? '+' : '') + diff.toFixed(2) + ' from prev';
+    if (diff === 0) return '✓ predicted correctly';
+    return `prediction error: ${Math.abs(diff).toFixed(2)}`;
   }
   if (algoKey === 'rle') {
     return Array.isArray(enc) ? `× ${enc[1]} times` : '';
@@ -633,17 +639,22 @@ function run() {
     const ratio = +(origSize / Math.max(compSize, 1)).toFixed(2);
     const saved = +Math.max(0, (1 - compSize / origSize) * 100).toFixed(1);
     const bits = Math.max(0, (origSize - compSize) * 32);
+    
+    // COST FUNCTION CALCULATIONS (Optimization-based)
+    const origCost = origSize * 32;  // bits to transmit original data
+    const compCost = compSize * 32;  // bits to transmit compressed data
+    const costReduction = +Math.max(0, (1 - compCost / origCost) * 100).toFixed(1);
 
-    // Metrics count-up
-    countUp('mOrig', origSize, '', 0);
-    countUp('mComp', compSize, '', 0);
+    // Metrics count-up (now in bits)
+    countUp('mOrig', origCost, '', 0);
+    countUp('mComp', compCost, '', 0);
     countUp('mRatio', ratio, 'x', 2);
-    countUp('mSaved', saved, '%', 1);
+    countUp('mSaved', costReduction, '%', 1);
 
     // Sidebar stats
     document.getElementById('sPoints').textContent = origSize;
-    document.getElementById('sOrig').textContent = origSize + ' values';
-    document.getElementById('sComp').textContent = compSize + ' values';
+    document.getElementById('sOrig').textContent = origCost + ' bits';
+    document.getElementById('sComp').textContent = compCost + ' bits';
     document.getElementById('sBits').textContent = bits + ' bits';
     document.getElementById('sLoss').textContent = algo !== 'half' ? 'Yes ✓' : 'No ✗';
     document.getElementById('sTime').textContent = elapsed + ' ms';
@@ -660,13 +671,13 @@ function run() {
 
     // Efficiency bars (with delay)
     setTimeout(() => {
-      document.getElementById('effBW').textContent = saved + '%';
-      document.getElementById('effST').textContent = saved + '%';
-      document.getElementById('effTS').textContent = Math.min(saved * 1.2, 100).toFixed(0) + '%';
+      document.getElementById('effBW').textContent = costReduction + '%';
+      document.getElementById('effST').textContent = costReduction + '%';
+      document.getElementById('effTS').textContent = Math.min(costReduction * 1.2, 100).toFixed(0) + '%';
       document.getElementById('effRating').textContent = EFF_RATINGS[algo] + '/100';
-      document.getElementById('effBWBar').style.width = saved + '%';
-      document.getElementById('effSTBar').style.width = saved + '%';
-      document.getElementById('effTSBar').style.width = Math.min(saved * 1.5, 100) + '%';
+      document.getElementById('effBWBar').style.width = costReduction + '%';
+      document.getElementById('effSTBar').style.width = costReduction + '%';
+      document.getElementById('effTSBar').style.width = Math.min(costReduction * 1.5, 100) + '%';
       document.getElementById('effRBar').style.width = EFF_RATINGS[algo] + '%';
     }, 300);
 
