@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>IoTCompress — Smart Sensor Data Compression</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#05070f;--bg2:#090c18;--bg3:#0d1020;--bg4:#12152b;--bg5:#181d36;
+  --border:rgba(255,255,255,0.055);--border2:rgba(255,255,255,0.1);--border3:rgba(99,102,241,0.35);
+  --text:#e8ebff;--muted:#636994;--dim:#2e3358;
+  --indigo:#6366f1;--indigo-l:#a5b4fc;--indigo-d:#4338ca;--indigo-xl:#c7d2fe;
+  --teal:#14b8a6;--teal-l:#5eead4;--teal-xl:#99f6e4;
+  --amber:#d97706;--amber-l:#fbbf24;
+  --green:#16a34a;--green-l:#4ade80;
+  --red:#dc2626;--red-l:#fca5a5;
+  --violet:#7c3aed;--violet-l:#c4b5fd;
+  --sidebar:240px;
+}
+html{scroll-behavior:smooth;}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* BG EFFECTS */
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(99,102,241,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(99,102,241,0.025) 1px,transparent 1px);
+  background-size:48px 48px;}
+.orb{position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(100px);}
+.orb1{width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,.18),transparent 70%);top:-250px;right:-150px;}
+.orb2{width:500px;height:500px;background:radial-gradient(circle,rgba(20,184,166,.12),transparent 70%);bottom:-180px;left:-120px;}
+.orb3{width:300px;height:300px;background:radial-gradient(circle,rgba(124,58,237,.1),transparent 70%);top:40%;left:40%;}
+
+/* TOPBAR */
+.topbar{
+  position:sticky;top:0;z-index:300;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 28px;height:58px;
+  background:rgba(5,7,15,0.9);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border);
+}
+.logo{display:flex;align-items:center;gap:11px;}
+.logo-icon{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,#6366f1 0%,#4f46e5 100%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:800;color:#fff;
+  box-shadow:0 0 24px rgba(99,102,241,.4),inset 0 1px 0 rgba(255,255,255,.15);
+  position:relative;
+}
+.logo-icon::after{content:'';position:absolute;inset:0;border-radius:10px;background:linear-gradient(to bottom,rgba(255,255,255,.1),transparent);pointer-events:none;}
+.brand{font-size:15px;font-weight:700;letter-spacing:-.01em;}
+.brand em{color:var(--indigo-l);font-style:normal;}
+.topbar-pills{display:flex;gap:8px;align-items:center;}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;}
+.chip-sys{background:rgba(74,222,128,.07);color:var(--green-l);border:1px solid rgba(74,222,128,.18);}
+.chip-algo{background:rgba(99,102,241,.08);color:var(--indigo-l);border:1px solid rgba(99,102,241,.2);transition:all .3s;}
+.chip-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 2.2s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
+
+/* LAYOUT */
+.shell{display:flex;position:relative;z-index:1;min-height:calc(100vh - 58px);}
+
+/* SIDEBAR */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:var(--bg2);border-right:1px solid var(--border);
+  padding:20px 12px;display:flex;flex-direction:column;gap:2px;
+  position:sticky;top:58px;height:calc(100vh - 58px);overflow-y:auto;
+}
+.sidebar::-webkit-scrollbar{width:2px;}
+.sidebar::-webkit-scrollbar-thumb{background:var(--dim);}
+.s-sec{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase;padding:0 8px;margin:14px 0 6px;}
+.s-sec:first-child{margin-top:0;}
+
+.acard{
+  border-radius:11px;padding:12px 13px;cursor:pointer;
+  border:1px solid transparent;
+  transition:all .18s cubic-bezier(.4,0,.2,1);
+  position:relative;
+}
+.acard:hover:not(.on){background:var(--bg3);border-color:rgba(99,102,241,.15);transform:translateX(2px);}
+.acard.on{background:rgba(99,102,241,.09);border-color:rgba(99,102,241,.35);}
+.acard.on::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:0 2px 2px 0;background:linear-gradient(to bottom,var(--indigo-l),var(--indigo));}
+.acard-name{font-size:12.5px;font-weight:600;color:var(--indigo-l);margin-bottom:3px;}
+.acard-desc{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--muted);line-height:1.55;}
+.acard-tag{display:inline-block;margin-top:6px;padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:8.5px;font-weight:600;}
+.tag-iot{background:rgba(74,222,128,.08);color:var(--green-l);border:1px solid rgba(74,222,128,.2);}
+.tag-ll{background:rgba(99,102,241,.08);color:var(--indigo-l);border:1px solid rgba(99,102,241,.2);}
+.tag-sim{background:rgba(239,68,68,.08);color:var(--red-l);border:1px solid rgba(239,68,68,.2);}
+
+.stat-rows{display:flex;flex-direction:column;gap:0;}
+.stat-r{display:flex;justify-content:space-between;align-items:center;padding:7px 9px;border-radius:7px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);transition:background .15s;}
+.stat-r:hover{background:var(--bg3);}
+.stat-r .v{color:var(--text);font-weight:500;}
+
+/* MAIN */
+.main{flex:1;padding:24px 28px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;}
+
+/* INPUT CARD */
+.icard{
+  background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 22px;
+  position:relative;overflow:hidden;
+}
+.icard::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent 5%,rgba(99,102,241,.5) 50%,transparent 95%);}
+.sec-label{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;margin-bottom:12px;}
+.input-row{display:flex;gap:10px;}
+.inp{
+  flex:1;background:var(--bg3);border:1.5px solid var(--border2);
+  border-radius:11px;padding:12px 17px;
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--text);
+  outline:none;transition:all .2s;
+}
+.inp::placeholder{color:var(--dim);}
+.inp:focus{border-color:rgba(99,102,241,.6);box-shadow:0 0 0 3px rgba(99,102,241,.09),0 0 20px rgba(99,102,241,.08);}
+.inp.err{border-color:rgba(239,68,68,.5);box-shadow:0 0 0 3px rgba(239,68,68,.07);}
+.run-btn{
+  background:linear-gradient(135deg,#6366f1,#818cf8);
+  border:none;border-radius:11px;padding:12px 26px;
+  font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:#fff;
+  cursor:pointer;white-space:nowrap;position:relative;overflow:hidden;
+  transition:all .22s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 4px 20px rgba(99,102,241,.3);
+}
+.run-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,.12),transparent);pointer-events:none;}
+.run-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 32px rgba(99,102,241,.5);}
+.run-btn:active:not(:disabled){transform:translateY(0);}
+.run-btn:disabled{opacity:.55;cursor:not-allowed;}
+.err-line{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red-l);margin-top:9px;display:none;align-items:center;gap:6px;}
+
+/* DEMO SEEDS */
+.seeds{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap;}
+.seed{
+  padding:4px 11px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:10px;
+  background:var(--bg3);border:1px solid var(--border);color:var(--muted);cursor:pointer;
+  transition:all .15s;
+}
+.seed:hover{border-color:rgba(99,102,241,.4);color:var(--indigo-l);background:rgba(99,102,241,.06);}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.mc{
+  background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;
+  position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;
+  cursor:default;
+}
+.mc:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,0,0,.35);}
+.mc::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:2px 2px 0 0;}
+.mc-i::after{background:linear-gradient(90deg,var(--indigo),transparent);}
+.mc-t::after{background:linear-gradient(90deg,var(--teal),transparent);}
+.mc-a::after{background:linear-gradient(90deg,var(--amber-l),transparent);}
+.mc-g::after{background:linear-gradient(90deg,var(--green-l),transparent);}
+.mc-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:10px;}
+.mc-val{font-size:30px;font-weight:800;letter-spacing:-.04em;line-height:1;}
+.mc-i .mc-val{color:var(--indigo-l);}
+.mc-t .mc-val{color:var(--teal-l);}
+.mc-a .mc-val{color:var(--amber-l);}
+.mc-g .mc-val{color:var(--green-l);}
+.mc-unit{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--dim);margin-top:6px;}
+
+/* CHART PANEL */
+.panels{display:grid;grid-template-columns:3fr 2fr;gap:14px;}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px;position:relative;overflow:hidden;}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.pt{font-size:13px;font-weight:600;color:#c4c9e8;}
+.psub{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);}
+.legend{display:flex;gap:14px;}
+.li{display:flex;align-items:center;gap:5px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);}
+.ld{width:10px;height:3px;border-radius:2px;}
+
+/* CHART */
+.chart-box{position:relative;width:100%;height:230px;}
+.empty-s{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:10px;}
+.empty-ico{font-size:28px;opacity:.18;}
+.empty-txt{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--dim);}
+
+/* LOADER OVERLAY */
+.loverlay{
+  position:absolute;inset:0;border-radius:14px;z-index:50;
+  background:rgba(5,7,15,.9);backdrop-filter:blur(8px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.loverlay.on{opacity:1;pointer-events:all;}
+.lbar-track{width:160px;height:2px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.lbar{height:100%;background:linear-gradient(90deg,var(--indigo),var(--teal));border-radius:2px;width:0;}
+.ltxt{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+
+/* ENCODING STEPS */
+.steps-list{display:flex;flex-direction:column;gap:5px;max-height:272px;overflow-y:auto;}
+.steps-list::-webkit-scrollbar{width:2px;}
+.steps-list::-webkit-scrollbar-thumb{background:var(--dim);}
+.srow{
+  display:grid;align-items:center;gap:7px;
+  padding:8px 10px;border-radius:9px;
+  background:var(--bg3);border:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  opacity:0;transform:translateX(-8px);
+  transition:opacity .28s,transform .28s,background .15s,border-color .15s;
+  grid-template-columns:20px 1fr 14px 1fr 1fr;
+}
+.srow.vis{opacity:1;transform:none;}
+.srow:hover{background:var(--bg4);border-color:rgba(99,102,241,.2);}
+.sn{color:var(--dim);font-size:9.5px;}
+.sv2{color:var(--indigo-l);font-weight:500;}
+.sarr{color:var(--dim);text-align:center;}
+.se{color:var(--teal-l);font-weight:500;}
+.sdesc{color:var(--muted);font-size:9.5px;}
+
+/* ENCODED OUTPUT */
+.cbox-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:5px;}
+.cbox{border-radius:10px;padding:11px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.8;word-break:break-all;margin-bottom:12px;}
+.cbox-enc{background:rgba(20,184,166,.04);border:1px solid rgba(20,184,166,.14);color:var(--teal-l);}
+.cbox-dec{background:rgba(99,102,241,.04);border:1px solid rgba(99,102,241,.14);color:var(--indigo-l);}
+
+/* EFFICIENCY */
+.eff-g{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.ef{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:13px 14px;}
+.ef-lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em;}
+.ef-val{font-size:19px;font-weight:700;margin-bottom:8px;letter-spacing:-.02em;}
+.ef-track{height:3px;background:rgba(255,255,255,.04);border-radius:2px;overflow:hidden;}
+.ef-fill{height:100%;border-radius:2px;transition:width .9s cubic-bezier(.4,0,.2,1);}
+
+/* VIVA */
+.viva{
+  background:linear-gradient(135deg,rgba(74,222,128,.04),rgba(99,102,241,.04));
+  border:1px solid rgba(74,222,128,.14);
+  border-radius:14px;padding:20px 22px;
+}
+.viva-h{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.viva-tag{font-family:'JetBrains Mono',monospace;font-size:9.5px;background:rgba(74,222,128,.08);color:var(--green-l);border:1px solid rgba(74,222,128,.18);padding:3px 9px;border-radius:4px;}
+.viva-body{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9198c8;line-height:1.95;}
+.viva-body strong{color:var(--green-l);font-weight:500;}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.fu{animation:fadeUp .4s cubic-bezier(.4,0,.2,1) forwards;}
+
+/* COMPRESSION ANIMATION */
+@keyframes compress-flash{0%{box-shadow:0 0 0 rgba(99,102,241,0)} 40%{box-shadow:0 0 30px rgba(99,102,241,.35)} 100%{box-shadow:0 0 0 rgba(99,102,241,0)}}
+.compressing{animation:compress-flash .8s ease;}
+
+/* RESPONSIVE */
+@media(max-width:1120px){.metrics{grid-template-columns:repeat(2,1fr);}.panels{grid-template-columns:1fr;}}
+@media(max-width:740px){.sidebar{display:none;}.main{padding:14px;}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-icon">IoT</div>
+    <span class="brand">IoT<em>Compress</em></span>
+  </div>
+  <div class="topbar-pills">
+    <div class="chip chip-algo" id="topAlgo"><span class="chip-dot"></span> <span id="topAlgoTxt">Delta Encoding</span></div>
+    <div class="chip chip-sys"><span class="chip-dot"></span> System Online</div>
+  </div>
+</header>
+
+<div class="shell">
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="s-sec">Algorithm</div>
+
+  <div class="acard on" id="card-delta" onclick="selectAlgo('delta')">
+    <div class="acard-name">Delta Encoding</div>
+    <div class="acard-desc">Transmit differences between consecutive readings</div>
+    <span class="acard-tag tag-iot">BEST FOR IoT</span>
+  </div>
+
+  <div class="acard" id="card-rle" onclick="selectAlgo('rle')">
+    <div class="acard-name">Run-Length (RLE)</div>
+    <div class="acard-desc">Compress repeated consecutive values into pairs</div>
+    <span class="acard-tag tag-ll">LOSSLESS</span>
+  </div>
+
+  <div class="acard" id="card-minmax" onclick="selectAlgo('minmax')">
+    <div class="acard-name">Min-Max Norm</div>
+    <div class="acard-desc">Normalize all values to 0–1 range for transmission</div>
+    <span class="acard-tag tag-ll">LOSSLESS</span>
+  </div>
+
+  <div class="acard" id="card-half" onclick="selectAlgo('half')">
+    <div class="acard-name">Basic Scaling</div>
+    <div class="acard-desc">÷2 simulation — for comparison only</div>
+    <span class="acard-tag tag-sim">SIMULATION</span>
+  </div>
+
+  <div class="s-sec">Session Stats</div>
+  <div class="stat-rows">
+    <div class="stat-r">Data Points <span class="v" id="sPoints">—</span></div>
+    <div class="stat-r">Original <span class="v" id="sOrig">—</span></div>
+    <div class="stat-r">Compressed <span class="v" id="sComp">—</span></div>
+    <div class="stat-r">Bits Saved <span class="v" id="sBits">—</span></div>
+    <div class="stat-r">Lossless <span class="v" id="sLoss">—</span></div>
+    <div class="stat-r">Proc. Time <span class="v" id="sTime">—</span></div>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+
+  <!-- INPUT -->
+  <div class="icard" id="inputCard">
+    <div class="loverlay" id="chartLoader">
+      <div class="ltxt" id="loaderTxt">Initializing...</div>
+      <div class="lbar-track"><div class="lbar" id="loaderBar"></div></div>
+    </div>
+    <div class="sec-label">Sensor Data Input</div>
+    <div class="input-row">
+      <input class="inp" id="sensorInput" placeholder="e.g. 100,102,101,103,104,105,103,102" autocomplete="off" value="100,101,102,103,104"/>
+      <button class="run-btn" id="runBtn" onclick="run()">⚡ Compress</button>
+    </div>
+    <div class="err-line" id="errLine">⚠ Enter valid comma-separated numbers (e.g. 10,20,30)</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);margin-top:8px;">💡 Best results when sensor values change gradually</div>
+    <div class="seeds">
+      <span class="seed" onclick="useSeed(this)" data-v="100,101,102,103,104" style="border-color:rgba(99,102,241,.3);color:var(--indigo-l);">✨ Try Sample Data</span>
+      <span class="seed" onclick="useSeed(this)" data-v="100,102,101,103,104,105,103,102">📡 IoT Sensor</span>
+      <span class="seed" onclick="useSeed(this)" data-v="10,10,10,20,20,30,30,30,30">🔁 Repeating (RLE)</span>
+      <span class="seed" onclick="useSeed(this)" data-v="5,15,25,35,45,55,65,75">📈 Linear Rise</span>
+      <span class="seed" onclick="useSeed(this)" data-v="72,73,71,74,72,73,75,72,71,74">🌡 Temperature</span>
+    </div>
+  </div>
+
+  <!-- METRICS -->
+  <div class="metrics">
+    <div class="mc mc-i"><div class="mc-lbl">Original Size</div><div class="mc-val" id="mOrig">—</div><div class="mc-unit">data points</div></div>
+    <div class="mc mc-t"><div class="mc-lbl">Compressed Size</div><div class="mc-val" id="mComp">—</div><div class="mc-unit">encoded values</div></div>
+    <div class="mc mc-a"><div class="mc-lbl">Compression Ratio</div><div class="mc-val" id="mRatio">—</div><div class="mc-unit">original ÷ compressed</div></div>
+    <div class="mc mc-g"><div class="mc-lbl">Space Saved</div><div class="mc-val" id="mSaved">—</div><div class="mc-unit">% reduction</div></div>
+  </div>
+
+  <!-- CHART + STEPS -->
+  <div class="panels">
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Signal Comparison</div>
+        <div class="legend">
+          <div class="li"><div class="ld" style="background:var(--indigo-l);"></div>Original</div>
+          <div class="li"><div class="ld" style="background:var(--teal-l);border-top:1px dashed var(--teal-l);height:0;border-radius:0;"></div>Reconstructed</div>
+        </div>
+      </div>
+      <div id="emptyChart" class="empty-s">
+        <div class="empty-ico">📡</div>
+        <div class="empty-txt">Awaiting sensor data...</div>
+      </div>
+      <div class="chart-box" id="chartWrap" style="display:none;">
+        <canvas id="iotChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Encoding Steps</div>
+        <div class="psub" id="stepsLbl">—</div>
+      </div>
+      <div id="emptySteps" class="empty-s" style="height:130px;">
+        <div class="empty-ico">⚙️</div>
+        <div class="empty-txt">Run compression to see steps</div>
+      </div>
+      <div class="steps-list" id="stepsList" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ENCODED OUTPUT + EFFICIENCY (hidden initially) -->
+  <div class="panels" id="row2" style="display:none;">
+    <div class="panel">
+      <div class="ph">
+        <div class="pt">Encoded Output</div>
+        <div class="psub" id="encLbl">—</div>
+      </div>
+      <div class="cbox-lbl">Transmitted (compressed stream)</div>
+      <div class="cbox cbox-enc" id="encBox">—</div>
+      <div class="cbox-lbl">Reconstructed at receiver</div>
+      <div class="cbox cbox-dec" id="decBox">—</div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><div class="pt">Efficiency Metrics</div></div>
+      <div class="eff-g">
+        <div class="ef">
+          <div class="ef-lbl">Bandwidth Saved</div>
+          <div class="ef-val" id="effBW" style="color:var(--teal-l)">—</div>
+          <div class="ef-track"><div class="ef-fill" id="effBWBar" style="background:var(--teal);width:0;"></div></div>
+        </div>
+        <div class="ef">
+          <div class="ef-lbl">Storage Saved</div>
+          <div class="ef-val" id="effST" style="color:var(--indigo-l)">—</div>
+          <div class="ef-track"><div class="ef-fill" id="effSTBar" style="background:var(--indigo);width:0;"></div></div>
+        </div>
+        <div class="ef">
+          <div class="ef-lbl">Transmission Gain</div>
+          <div class="ef-val" id="effTS" style="color:var(--amber-l)">—</div>
+          <div class="ef-track"><div class="ef-fill" id="effTSBar" style="background:var(--amber-l);width:0;"></div></div>
+        </div>
+        <div class="ef">
+          <div class="ef-lbl">Algorithm Rating</div>
+          <div class="ef-val" id="effRating" style="color:var(--green-l)">—</div>
+          <div class="ef-track"><div class="ef-fill" id="effRBar" style="background:var(--green-l);width:0;"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- VIVA PANEL -->
+  <div class="viva" id="vivaPanel" style="display:none;">
+    <div class="viva-h">
+      <div class="pt" style="margin:0;">Viva Explanation</div>
+      <div class="viva-tag">Say this confidently</div>
+    </div>
+    <div class="viva-body" id="vivaBody">—</div>
+  </div>
+
+</main>
+</div>
+
+<script>
+let algo = 'delta', chart = null;
+
+const ALGO_NAMES = {delta:'Delta Encoding',rle:'Run-Length Encoding',minmax:'Min-Max Normalization',half:'Basic Scaling'};
+const EFF_RATINGS = {delta:92,rle:85,minmax:78,half:30};
+const VIVA = {
+  delta:`<strong>Algorithm:</strong> Delta Encoding stores only the <em>difference</em> between consecutive sensor readings instead of raw values. The first value is transmitted as-is; each following value is <em>(current − previous)</em>. The receiver perfectly reconstructs the original data by summing deltas. This is a <strong>lossless</strong> technique widely used in IoT, time-series databases, and video codecs — wherever data changes slowly between readings.`,
+  rle:`<strong>Algorithm:</strong> Run-Length Encoding (RLE) detects consecutive repeated sensor values and encodes them as a (value, count) pair instead of repeating them. Example: [20,20,20,30,30] → [(20,3),(30,2)] — 5 values become 2 pairs. This is a <strong>lossless</strong> algorithm that shines when IoT sensors hold steady between events. Original data reconstructs perfectly at the receiver.`,
+  minmax:`<strong>Algorithm:</strong> Min-Max Normalization scales every reading into the [0,1] range using <em>(x−min)/(max−min)</em>. Min and max are transmitted once as metadata (small overhead). The receiver reconstructs exactly via <em>norm×(max−min)+min</em>. This <strong>lossless</strong> technique standardizes heterogeneous sensor ranges, enabling efficient downstream ML inference and cross-device comparison.`,
+  half:`<strong>Note:</strong> This is a basic scaling simulation (÷2) included for educational comparison only — it is not a real compression algorithm. Our actual implementation uses <strong>Delta Encoding</strong>, a real lossless IoT compression technique that encodes differences between readings and achieves meaningful bandwidth and storage savings without any data loss.`
+};
+
+/* ALGO SELECT */
+function selectAlgo(a) {
+  algo = a;
+  document.querySelectorAll('.acard').forEach(c => c.classList.remove('on'));
+  document.getElementById('card-' + a).classList.add('on');
+  document.getElementById('topAlgoTxt').textContent = ALGO_NAMES[a];
+}
+
+/* DEMO SEEDS */
+function useSeed(el) {
+  document.getElementById('sensorInput').value = el.dataset.v;
+  document.getElementById('sensorInput').focus();
+}
+
+/* ALGORITHMS */
+function deltaEncode(d) {
+  const e = [d[0]];
+  for (let i = 1; i < d.length; i++) e.push(+(d[i] - d[i-1]).toFixed(4));
+  return e;
+}
+function deltaDecode(e) {
+  const d = [e[0]];
+  for (let i = 1; i < e.length; i++) d.push(+(d[i-1] + e[i]).toFixed(4));
+  return d;
+}
+function rleEncode(d) {
+  const e = []; let i = 0;
+  while (i < d.length) {
+    const v = d[i]; let c = 0;
+    while (i < d.length && d[i] === v) { c++; i++; }
+    e.push([v, c]);
+  }
+  return e;
+}
+function rleDecode(e) {
+  const d = [];
+  e.forEach(([v,c]) => { for (let i = 0; i < c; i++) d.push(v); });
+  return d;
+}
+function minmaxEncode(d) {
+  const mn = Math.min(...d), mx = Math.max(...d);
+  if (mn === mx) return { enc: d.map(() => 0), mn, mx };
+  return { enc: d.map(v => +((v-mn)/(mx-mn)).toFixed(4)), mn, mx };
+}
+function minmaxDecode(enc, mn, mx) {
+  return enc.map(v => +(v*(mx-mn)+mn).toFixed(3));
+}
+
+/* LOADER */
+function showLoader() {
+  const ol = document.getElementById('chartLoader');
+  const bar = document.getElementById('loaderBar');
+  const txt = document.getElementById('loaderTxt');
+  const msgs = ['Parsing sensor data...','Applying ' + ALGO_NAMES[algo] + '...','Calculating metrics...','Rendering chart...'];
+  ol.classList.add('on');
+  bar.style.transition = 'none'; bar.style.width = '0';
+  let pct = 0, mi = 0;
+  const iv = setInterval(() => {
+    pct += Math.random() * 22 + 10; if (pct > 100) pct = 100;
+    bar.style.transition = 'width .12s';
+    bar.style.width = pct + '%';
+    txt.textContent = msgs[Math.min(mi++, msgs.length - 1)];
+    if (pct >= 100) { clearInterval(iv); setTimeout(() => ol.classList.remove('on'), 350); }
+  }, 210);
+}
+
+/* COUNT-UP ANIMATION */
+function countUp(id, target, suffix, dec) {
+  const el = document.getElementById(id);
+  const num = parseFloat(target);
+  const start = performance.now(), dur = 750;
+  function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = (num * ease).toFixed(dec) + suffix;
+    if (p < 1) requestAnimationFrame(tick);
+    else el.textContent = target + suffix;
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ENCODING STEPS — improved descriptions */
+function getStepDesc(i, orig, enc, algoKey) {
+  if (algoKey === 'delta') {
+    if (i === 0) return '(base value)';
+    const diff = enc;
+    if (diff === 0) return 'no change';
+    return (diff > 0 ? '+' : '') + diff.toFixed(2) + ' from prev';
+  }
+  if (algoKey === 'rle') {
+    return Array.isArray(enc) ? `× ${enc[1]} times` : '';
+  }
+  if (algoKey === 'minmax') {
+    return `→ normalized`;
+  }
+  return `÷ 2`;
+}
+
+function renderSteps(nums, encoded, algoKey) {
+  const list = document.getElementById('stepsList');
+  const empty = document.getElementById('emptySteps');
+  empty.style.display = 'none';
+  list.style.display = 'flex';
+  list.innerHTML = '';
+
+  nums.forEach((orig, i) => {
+    let encVal = Array.isArray(encoded[0]) ? encoded[i] : encoded[i];
+    let encDisplay, encRaw;
+    if (algoKey === 'rle') {
+      const pair = encoded[i];
+      if (!pair) return;
+      encDisplay = `${pair[0]}`;
+      encRaw = pair;
+    } else if (typeof encVal === 'number') {
+      encDisplay = encVal.toFixed(3);
+      encRaw = encVal;
+    } else {
+      encDisplay = String(encVal);
+      encRaw = encVal;
+    }
+
+    const desc = getStepDesc(i, orig, algoKey === 'rle' ? encRaw : encVal, algoKey);
+    const row = document.createElement('div');
+    row.className = 'srow';
+    row.innerHTML = `<span class="sn">${i+1}</span><span class="sv2">${orig}</span><span class="sarr">→</span><span class="se">${encDisplay}</span><span class="sdesc">${desc}</span>`;
+    list.appendChild(row);
+    setTimeout(() => row.classList.add('vis'), i * 65 + 80);
+  });
+
+  document.getElementById('stepsLbl').textContent = nums.length + ' steps';
+}
+
+/* MAIN RUN */
+function run() {
+  const raw = document.getElementById('sensorInput').value.trim();
+  const errEl = document.getElementById('errLine');
+  const inp = document.getElementById('sensorInput');
+  errEl.style.display = 'none';
+  inp.classList.remove('err');
+
+  if (!raw) {
+    errEl.style.display = 'flex'; inp.classList.add('err'); return;
+  }
+  const parts = raw.split(',').map(s => s.trim());
+  const nums = parts.map(Number);
+  if (parts.some(p => p === '') || nums.some(isNaN) || nums.length === 0) {
+    errEl.style.display = 'flex'; inp.classList.add('err'); return;
+  }
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.textContent = '⏳ Processing...';
+  showLoader();
+
+  // Flash effect
+  document.getElementById('inputCard').classList.add('compressing');
+  setTimeout(() => document.getElementById('inputCard').classList.remove('compressing'), 800);
+
+  const t0 = performance.now();
+
+  setTimeout(() => {
+    let encoded, decoded, encStr, compSize, mmMin, mmMax, rleStepEncoded;
+    const origSize = nums.length;
+
+    if (algo === 'delta') {
+      encoded = deltaEncode(nums);
+      decoded = deltaDecode(encoded);
+      compSize = encoded.length;
+      encStr = encoded.map((v, i) => i === 0 ? v.toFixed(2) : (v >= 0 ? '+' : '') + v.toFixed(2)).join(', ');
+      rleStepEncoded = encoded;
+
+    } else if (algo === 'rle') {
+      const pairs = rleEncode(nums);
+      compSize = pairs.length * 2;
+      decoded = rleDecode(pairs);
+      encStr = pairs.map(([v,c]) => `(${v} × ${c})`).join('  ');
+      encoded = pairs.map(([v]) => v);
+      rleStepEncoded = pairs;
+
+    } else if (algo === 'minmax') {
+      const r = minmaxEncode(nums);
+      encoded = r.enc; mmMin = r.mn; mmMax = r.mx;
+      decoded = minmaxDecode(encoded, mmMin, mmMax);
+      compSize = encoded.length;
+      encStr = encoded.map(v => v.toFixed(4)).join(', ');
+      rleStepEncoded = encoded;
+
+    } else {
+      encoded = nums.map(v => v / 2);
+      decoded = encoded.map(v => v * 2);
+      compSize = encoded.length;
+      encStr = encoded.map(v => v.toFixed(2)).join(', ');
+      rleStepEncoded = encoded;
+    }
+
+    const elapsed = (performance.now() - t0).toFixed(1);
+    const ratio = +(origSize / Math.max(compSize, 1)).toFixed(2);
+    const saved = +Math.max(0, (1 - compSize / origSize) * 100).toFixed(1);
+    const bits = Math.max(0, (origSize - compSize) * 32);
+
+    // Metrics count-up
+    countUp('mOrig', origSize, '', 0);
+    countUp('mComp', compSize, '', 0);
+    countUp('mRatio', ratio, 'x', 2);
+    countUp('mSaved', saved, '%', 1);
+
+    // Sidebar stats
+    document.getElementById('sPoints').textContent = origSize;
+    document.getElementById('sOrig').textContent = origSize + ' values';
+    document.getElementById('sComp').textContent = compSize + ' values';
+    document.getElementById('sBits').textContent = bits + ' bits';
+    document.getElementById('sLoss').textContent = algo !== 'half' ? 'Yes ✓' : 'No ✗';
+    document.getElementById('sTime').textContent = elapsed + ' ms';
+
+    // Encoded output
+    document.getElementById('encBox').textContent = encStr;
+    document.getElementById('decBox').textContent = decoded.map(v => +v.toFixed(3)).join(', ');
+    document.getElementById('encLbl').textContent = {
+      delta:'(base + delta offsets)',
+      rle:'(value × count) pairs',
+      minmax:'(0–1 normalized)',
+      half:'(÷2 scaled)'
+    }[algo];
+
+    // Efficiency bars (with delay)
+    setTimeout(() => {
+      document.getElementById('effBW').textContent = saved + '%';
+      document.getElementById('effST').textContent = saved + '%';
+      document.getElementById('effTS').textContent = Math.min(saved * 1.2, 100).toFixed(0) + '%';
+      document.getElementById('effRating').textContent = EFF_RATINGS[algo] + '/100';
+      document.getElementById('effBWBar').style.width = saved + '%';
+      document.getElementById('effSTBar').style.width = saved + '%';
+      document.getElementById('effTSBar').style.width = Math.min(saved * 1.5, 100) + '%';
+      document.getElementById('effRBar').style.width = EFF_RATINGS[algo] + '%';
+    }, 300);
+
+    // Show hidden panels with staggered fade
+    const row2 = document.getElementById('row2');
+    const vivaP = document.getElementById('vivaPanel');
+    row2.style.display = 'grid';
+    row2.style.opacity = '0';
+    setTimeout(() => { row2.style.transition = 'opacity .4s'; row2.style.opacity = '1'; }, 150);
+    vivaP.style.display = 'block';
+    vivaP.style.opacity = '0';
+    setTimeout(() => { vivaP.style.transition = 'opacity .4s'; vivaP.style.opacity = '1'; }, 300);
+
+    document.getElementById('vivaBody').innerHTML = VIVA[algo];
+
+    // Encoding steps
+    renderSteps(nums, rleStepEncoded, algo);
+
+    // Chart
+    document.getElementById('emptyChart').style.display = 'none';
+    document.getElementById('chartWrap').style.display = 'block';
+
+    if (chart) { chart.destroy(); chart = null; }
+    chart = new Chart(document.getElementById('iotChart'), {
+      type: 'line',
+      data: {
+        labels: nums.map((_, i) => 'S' + (i + 1)),
+        datasets: [
+          {
+            label: 'Original',
+            data: nums,
+            borderColor: '#a5b4fc',
+            backgroundColor: 'rgba(99,102,241,0.08)',
+            borderWidth: 2.5,
+            pointBackgroundColor: '#a5b4fc',
+            pointBorderColor: 'rgba(165,180,252,0.3)',
+            pointBorderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 8,
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: '#a5b4fc',
+            pointHoverBorderWidth: 2,
+            fill: true, tension: 0.4
+          },
+          {
+            label: 'Reconstructed',
+            data: decoded.map(v => +v.toFixed(3)),
+            borderColor: '#5eead4',
+            backgroundColor: 'rgba(20,184,166,0.04)',
+            borderWidth: 2,
+            borderDash: [6, 4],
+            pointBackgroundColor: '#5eead4',
+            pointRadius: 4,
+            pointHoverRadius: 7,
+            pointHoverBackgroundColor: '#fff',
+            pointHoverBorderColor: '#5eead4',
+            pointHoverBorderWidth: 2,
+            fill: false, tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 900, easing: 'easeOutQuart' },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0d1020',
+            borderColor: 'rgba(99,102,241,0.3)',
+            borderWidth: 1,
+            titleColor: '#c4c9e8',
+            bodyColor: '#636994',
+            padding: 12,
+            cornerRadius: 9,
+            callbacks: {
+              label: ctx => '  ' + ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(3)
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+            ticks: { color: '#2e3358', font: { family: 'JetBrains Mono', size: 10 } }
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.03)', drawBorder: false },
+            ticks: { color: '#2e3358', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toFixed(1) }
+          }
+        }
+      }
+    });
+
+    btn.disabled = false; btn.textContent = '⚡ Compress';
+  }, 1500);
+}
+
+document.getElementById('sensorInput').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+</script>
+</body>
+</html>
