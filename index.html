@@ -339,11 +339,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
     <div class="mc mc-g"><div class="mc-lbl">Cost Reduction</div><div class="mc-val" id="mSaved">—</div><div class="mc-unit">% savings</div></div>
   </div>
 
-  <!-- OPTIMIZATION SUMMARY -->
-  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:20px;">
-    <div style="font-size:13px;font-weight:600;color:#c4c9e8;margin-bottom:10px;">📊 Optimization Summary</div>
-    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#9198c8;line-height:1.9;">This system minimizes data transmission cost by reducing redundancy using Delta Encoding. The objective function is to minimize total bits transmitted while preserving information fidelity. Prediction-based encoding achieves this by transmitting only deviations from predicted values.</div>
-  </div>
+ 
 
   <!-- CHART + STEPS -->
   <div class="panels">
@@ -417,14 +413,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
     </div>
   </div>
 
-  <!-- VIVA PANEL -->
-  <div class="viva" id="vivaPanel" style="display:none;">
-    <div class="viva-h">
-      <div class="pt" style="margin:0;">Viva Explanation</div>
-      <div class="viva-tag">Say this confidently</div>
-    </div>
-    <div class="viva-body" id="vivaBody">—</div>
-  </div>
+  
 
 </main>
 </div>
@@ -434,12 +423,7 @@ let algo = 'delta', chart = null;
 
 const ALGO_NAMES = {delta:'Delta Encoding',rle:'Run-Length Encoding',minmax:'Min-Max Normalization',half:'Basic Scaling'};
 const EFF_RATINGS = {delta:92,rle:85,minmax:78,half:30};
-const VIVA = {
-  delta:`<strong>Optimization Approach:</strong> This project models IoT data transmission as an optimization problem. Delta Encoding minimizes bandwidth usage by transmitting only the <em>difference</em> (delta) between consecutive readings. The first value is sent; subsequent transmissions carry only deltas. The objective function minimizes total bits transmitted: <em>Cost = (n_deltas) × 32 bits</em>. The receiver reconstructs original data perfectly by accumulating deltas. This prediction-based encoding is a <strong>lossless</strong> optimization technique used in real IoT systems where data changes gradually.`,
-  rle:`<strong>Optimization Approach:</strong> This project optimizes data transmission using Run-Length Encoding (RLE). When consecutive sensor values repeat, RLE encodes them as (value, count) pairs instead of individual transmissions. Example: [20,20,20,30,30] → [(20,3),(30,2)], reducing 5 transmissions to 2. The objective function minimizes cost when redundancy is present. This is a <strong>lossless</strong> optimization technique effective for sensor data with stable readings and minimal prediction error.`,
-  minmax:`<strong>Optimization Approach:</strong> This project optimizes sensor data for efficient machine learning using Min-Max Normalization. All readings are scaled to [0,1] using <em>(x−min)/(max−min)</em>. Min/max metadata is transmitted once. Optimization objective: minimize bits per value while standardizing heterogeneous sensor ranges. The receiver reconstructs perfectly. This <strong>lossless</strong> technique is fundamental in ML pipelines where feature normalization is critical and bandwidth efficiency matters.`,
-  half:`<strong>Note:</strong> This is a basic scaling simulation (÷2) for comparison only. Our main implementation uses <strong>Delta Encoding</strong>, a real optimization technique that minimizes transmission cost by exploiting temporal correlation in sensor data. The cost function is <em>J(θ) = Σ bits_transmitted</em>, minimized through predictive encoding.`
-};
+
 
 /* ALGO SELECT */
 function selectAlgo(a) {
@@ -683,15 +667,7 @@ function run() {
 
     // Show hidden panels with staggered fade
     const row2 = document.getElementById('row2');
-    const vivaP = document.getElementById('vivaPanel');
-    row2.style.display = 'grid';
-    row2.style.opacity = '0';
-    setTimeout(() => { row2.style.transition = 'opacity .4s'; row2.style.opacity = '1'; }, 150);
-    vivaP.style.display = 'block';
-    vivaP.style.opacity = '0';
-    setTimeout(() => { vivaP.style.transition = 'opacity .4s'; vivaP.style.opacity = '1'; }, 300);
-
-    document.getElementById('vivaBody').innerHTML = VIVA[algo];
+    
 
     // Encoding steps
     renderSteps(nums, rleStepEncoded, algo);
